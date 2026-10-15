@@ -108,7 +108,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </button>
             <div>
               <p className="text-sm font-semibold text-[#0c2340]">GHG Verification Hub</p>
-              <p className="text-xs text-slate-500">{opco} · {period}</p>
+              <p className="text-xs text-slate-500" suppressHydrationWarning>
+                {opco} · {period}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">

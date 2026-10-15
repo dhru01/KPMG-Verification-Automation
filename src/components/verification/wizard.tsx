@@ -92,7 +92,6 @@ export function Wizard() {
       });
       remember(data.run);
       goToStep(2, data.run);
-      router.replace(`/verification/new?run=${data.run.id}`);
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "The run could not be created.");
     } finally {

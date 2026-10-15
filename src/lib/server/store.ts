@@ -23,6 +23,26 @@ function emptyDatabase(): Database {
   };
 }
 
+function normalizeDatabase(parsed: Partial<Database> | undefined): Database {
+  const empty = emptyDatabase();
+  if (!parsed || typeof parsed !== "object") return empty;
+  return {
+    runs: Array.isArray(parsed.runs) ? parsed.runs : [],
+    auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : [],
+    notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
+    settings: {
+      ...empty.settings,
+      ...(parsed.settings && typeof parsed.settings === "object" ? parsed.settings : {}),
+      opcoRegions: {
+        ...empty.settings.opcoRegions,
+        ...(parsed.settings?.opcoRegions && typeof parsed.settings.opcoRegions === "object"
+          ? parsed.settings.opcoRegions
+          : {}),
+      },
+    },
+  };
+}
+
 const dataDir = path.join(process.cwd(), "data");
 const storePath = path.join(dataDir, "store.json");
 
@@ -41,11 +61,7 @@ async function readUnlocked(): Promise<Database> {
   try {
     const raw = await readFile(storePath, "utf8");
     const parsed = JSON.parse(raw) as Partial<Database>;
-    return {
-      ...emptyDatabase(),
-      ...parsed,
-      settings: { ...emptyDatabase().settings, ...parsed.settings },
-    };
+    return normalizeDatabase(parsed);
   } catch {
     return emptyDatabase();
   }
