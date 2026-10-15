@@ -27,12 +27,21 @@ export function uploadFile(
         onProgress(Math.round((event.loaded / event.total) * 100));
       }
     };
+    xhr.timeout = 120_000;
     xhr.onload = () => {
-      const body = JSON.parse(xhr.responseText || "{}");
-      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+      let body: { error?: string; run?: unknown } = {};
+      try {
+        body = JSON.parse(xhr.responseText || "{}");
+      } catch {
+        reject(new ApiError("Upload failed. The server returned an unexpected response."));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body as { run: import("./client-run").ClientRun });
       else reject(new ApiError(body.error || "Upload failed."));
     };
     xhr.onerror = () => reject(new ApiError("Upload failed. Check the connection and try again."));
+    xhr.ontimeout = () =>
+      reject(new ApiError("Upload timed out while processing the template. Try a smaller file or try again."));
     const data = new FormData();
     data.set("file", file);
     xhr.send(data);

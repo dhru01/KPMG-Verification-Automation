@@ -257,3 +257,14 @@ export function extractConsumptionRecords(input: {
 
   return { records, excludedBecauseScope };
 }
+
+/** Drop sheet rows before persisting the workspace (rows stay in the uploaded XLSX on disk/storage). */
+export function slimWorkbookForPersistence(workbook: ParsedWorkbook): ParsedWorkbook {
+  return {
+    needsMappingReview: workbook.needsMappingReview,
+    sheets: workbook.sheets.map((sheet) => ({
+      ...sheet,
+      rows: [],
+    })),
+  };
+}

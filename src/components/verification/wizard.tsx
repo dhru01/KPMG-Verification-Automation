@@ -405,9 +405,19 @@ export function Wizard() {
                 disabled={busy || locked}
                 onClick={() => templateInputRef.current?.click()}
               >
-                {busy && progress !== null ? `Uploading… ${progress}%` : run.template ? "Replace template file" : "Choose Excel file"}
+                {busy && progress !== null
+                  ? progress >= 100
+                    ? "Processing template…"
+                    : `Uploading… ${progress}%`
+                  : run.template
+                    ? "Replace template file"
+                    : "Choose Excel file"}
               </Button>
-              {progress !== null ? <p className="text-sm text-slate-600">Uploading… {progress}%</p> : null}
+              {progress !== null ? (
+                <p className="text-sm text-slate-600">
+                  {progress >= 100 ? "Processing template on server…" : `Uploading… ${progress}%`}
+                </p>
+              ) : null}
               {run.template ? (
                 <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                   <div><dt className="text-slate-500">File name</dt><dd className="font-medium">{run.template.filename}</dd></div>

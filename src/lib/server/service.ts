@@ -7,7 +7,7 @@ import { toClientRun, type ClientRun } from "../client-run";
 import { buildDashboard } from "../dashboard";
 import { buildVerificationAuditSummary } from "../verification-audit-summary";
 import { buildVerificationLiveView } from "../verification-live";
-import { extractConsumptionRecords, parseWorkbook } from "../excel/parse";
+import { extractConsumptionRecords, parseWorkbook, slimWorkbookForPersistence } from "../excel/parse";
 import type { AppliedSheetMapping } from "../excel/types";
 import {
   emptyExtraction,
@@ -412,7 +412,7 @@ export async function uploadTemplate(user: SessionUser, runId: string, file: { n
         ? "Some columns could not be mapped with confidence. Review the mapping before verification."
         : `Extracted ${extracted.records.length} consumption records.${extracted.excludedBecauseScope ? ` ${extracted.excludedBecauseScope} rows were outside the selected scope.` : ""}`,
     };
-    run.workbook = workbook;
+    run.workbook = slimWorkbookForPersistence(workbook);
     run.consumptionRecords = extracted.records;
     run.mappingConfirmed = !workbook.needsMappingReview;
     run.recordsConfirmed = false;
@@ -449,19 +449,25 @@ export async function clearTemplate(user: SessionUser, runId: string) {
 
 export async function applyMapping(user: SessionUser, runId: string, applied: AppliedSheetMapping[]) {
   assertWriter(user);
+  const existing = mustRun((await readDatabase()).runs, runId);
+  assertEditable(existing);
+  if (!existing.template?.storagePath) throw new HttpError(400, "Upload a data collection template first.");
+  const templateFilename = existing.template.filename;
+  const workbook = parseWorkbook(await readUpload(existing.template.storagePath));
   const database = await updateDatabase((current) => {
     const run = mustRun(current.runs, runId);
     assertEditable(run);
-    if (!run.workbook || !run.template) throw new HttpError(400, "Upload a data collection template first.");
+    if (!run.template) throw new HttpError(400, "Upload a data collection template first.");
     const extracted = extractConsumptionRecords({
-      workbook: run.workbook,
+      workbook,
       applied,
       opcoId: run.opcoId,
       reportingMonth: run.reportingMonth,
       reportingYear: run.reportingYear,
       scopeSelection: run.scopeSelection,
-      sourceFile: run.template.filename,
+      sourceFile: templateFilename,
     });
+    run.workbook = slimWorkbookForPersistence(workbook);
     run.consumptionRecords = extracted.records;
     run.mappingConfirmed = true;
     run.recordsConfirmed = false;
