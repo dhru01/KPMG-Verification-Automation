@@ -26,8 +26,25 @@ export function handleError(error: unknown): Response {
   if (error instanceof HttpError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
+  const code = error && typeof error === "object" && "code" in error ? String((error as NodeJS.ErrnoException).code) : "";
+  if (code === "EACCES" || code === "EPERM" || code === "EROFS") {
+    return Response.json(
+      {
+        error:
+          "Could not access the local data folder. Ensure the project data directory exists and is writable, then restart npm run dev.",
+      },
+      { status: 503 },
+    );
+  }
   console.error(error);
-  return Response.json({ error: "Something went wrong while processing the request." }, { status: 500 });
+  const detail =
+    process.env.NODE_ENV === "development" && error instanceof Error && error.message
+      ? ` ${error.message}`
+      : "";
+  return Response.json(
+    { error: `Something went wrong while processing the request.${detail}` },
+    { status: 500 },
+  );
 }
 
 export async function readFormFile(request: NextRequest, allowed: string[]) {

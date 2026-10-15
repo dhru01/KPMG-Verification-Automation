@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { DEFAULT_TOLERANCE } from "@engine/shared/types";
 import type { AppNotification, AppSettings, AuditLogEntry, VerificationRun } from "../types";
+import { HttpError } from "./http";
 
 interface Database {
   runs: VerificationRun[];
@@ -50,9 +51,27 @@ async function readUnlocked(): Promise<Database> {
   }
 }
 
+function persistenceError(error: unknown): HttpError {
+  const code = error && typeof error === "object" && "code" in error ? String((error as NodeJS.ErrnoException).code) : "";
+  if (code === "EACCES" || code === "EPERM" || code === "EROFS") {
+    return new HttpError(
+      503,
+      "Could not save verification data. Ensure the project data folder exists and is writable (see README: Data storage).",
+    );
+  }
+  if (code === "ENOSPC") {
+    return new HttpError(503, "Could not save verification data. The disk is full.");
+  }
+  return new HttpError(503, "Could not save verification data. Run the app from the project root and try again.");
+}
+
 async function writeUnlocked(database: Database) {
-  await mkdir(dataDir, { recursive: true });
-  await writeFile(storePath, JSON.stringify(database));
+  try {
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(storePath, JSON.stringify(database));
+  } catch (error) {
+    throw persistenceError(error);
+  }
 }
 
 export function readDatabase(): Promise<Database> {
