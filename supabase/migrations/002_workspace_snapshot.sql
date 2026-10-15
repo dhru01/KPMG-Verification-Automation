@@ -5,6 +5,15 @@ insert into storage.buckets (id, name, public)
 values ('ghg-hub-uploads', 'ghg-hub-uploads', false)
 on conflict (id) do nothing;
 
+-- Storage RLS (service role bypasses RLS; these help if you add client-side access later).
+drop policy if exists "ghg hub service role storage" on storage.objects;
+create policy "ghg hub service role storage"
+  on storage.objects
+  for all
+  to service_role
+  using (bucket_id = 'ghg-hub-uploads')
+  with check (bucket_id = 'ghg-hub-uploads');
+
 -- Optional legacy table (not used by current app builds). Safe to skip.
 create table if not exists public.workspace_snapshots (
   id text primary key default 'default',

@@ -19,7 +19,12 @@ interface SettingsPayload {
 export function SettingsView() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [data, setData] = useState<SettingsPayload | null>(null);
-  const [system, setSystem] = useState<{ processor: { available: boolean; detail: string }; supabaseConfigured: boolean } | null>(null);
+  const [system, setSystem] = useState<{
+    processor: { available: boolean; detail: string };
+    supabaseConfigured: boolean;
+    workspace?: { status: string; mode: string; detail?: string };
+    deployment?: { host: string; commit: string | null };
+  } | null>(null);
   const [mode, setMode] = useState<ToleranceConfig["mode"]>("exact");
   const [limit, setLimit] = useState("0");
   const [region, setRegion] = useState("Not configured");
@@ -32,7 +37,14 @@ export function SettingsView() {
       setLimit(String(result.settings.tolerance.absoluteTolerance ?? result.settings.tolerance.percentageTolerance ?? 0));
       setRegion(result.settings.opcoRegions.ayoba ?? "Not configured");
     }).catch((error: Error) => toast.error(error.message));
-    api<{ processor: { available: boolean; detail: string }; supabaseConfigured: boolean }>("/api/system").then(setSystem).catch(() => undefined);
+    api<{
+      processor: { available: boolean; detail: string };
+      supabaseConfigured: boolean;
+      workspace?: { status: string; mode: string; detail?: string };
+      deployment?: { host: string; commit: string | null };
+    }>("/api/system")
+      .then(setSystem)
+      .catch(() => undefined);
   }, []);
 
 
@@ -111,6 +123,15 @@ export function SettingsView() {
           <p>{system?.processor.detail}</p>
           <p>{data?.persistence}</p>
           <p>{system?.supabaseConfigured ? "Supabase environment variables are set." : "Supabase environment variables are not set."}</p>
+          <p>
+            Workspace:{" "}
+            {system?.workspace?.status === "ok"
+              ? `connected (${system.workspace.mode})`
+              : system?.workspace?.detail ?? "not checked"}
+          </p>
+          {system?.deployment?.commit ? (
+            <p className="text-xs text-slate-500">Deployment commit: {system.deployment.commit.slice(0, 7)}</p>
+          ) : null}
         </CardContent>
       </Card>
     </div>

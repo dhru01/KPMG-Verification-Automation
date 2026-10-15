@@ -2,12 +2,17 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
 
+function trimEnv(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 export function supabaseUrl(): string | undefined {
-  return process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return trimEnv(process.env.SUPABASE_URL) || trimEnv(process.env.NEXT_PUBLIC_SUPABASE_URL);
 }
 
 export function supabaseServiceRoleKey(): string | undefined {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return trimEnv(process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 export function getSupabaseAdmin(): SupabaseClient {
