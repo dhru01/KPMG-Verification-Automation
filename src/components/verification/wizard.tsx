@@ -42,12 +42,24 @@ export function Wizard() {
   const templateInputRef = useRef<HTMLInputElement>(null);
   const evidenceInputRef = useRef<HTMLInputElement>(null);
   const verificationStartedForRun = useRef<string | null>(null);
+  const urlRunId = params.get("run");
+
+  function resolveRunId(fallback: ClientRun | null = run): string | null {
+    return urlRunId ?? fallback?.id ?? null;
+  }
 
   useEffect(() => {
     const id = params.get("run");
-    if (!id) return;
+    if (!id) {
+      setRun(null);
+      setRecords([]);
+      if (!params.get("step")) setStep(1);
+      return;
+    }
+    let cancelled = false;
     api<{ run: ClientRun }>(`/api/runs/${id}`)
       .then((data) => {
+        if (cancelled || data.run.id !== id) return;
         setRun(data.run);
         setRecords(data.run.consumptionRecords);
         setMonth(data.run.reportingMonth);
@@ -59,8 +71,18 @@ export function Wizard() {
           Number.isFinite(requested) && requested >= 1 && requested <= 5 ? requested : stepFromRun(data.run);
         setStep(stepNumber);
       })
-      .catch((error: Error) => toast.error(error.message));
-  }, [params]);
+      .catch((error: Error) => {
+        if (cancelled) return;
+        toast.error(error.message);
+        setRun(null);
+        setRecords([]);
+        setStep(1);
+        router.replace("/verification/new");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [params, router]);
 
   function remember(next: ClientRun) {
     setRun(next);
@@ -91,7 +113,8 @@ export function Wizard() {
         body: JSON.stringify({ opcoId: "ayoba", reportingMonth: month, reportingYear: year, scopeSelection: scope }),
       });
       remember(data.run);
-      goToStep(2, data.run);
+      setStep(2);
+      router.replace(`/verification/new?run=${data.run.id}&step=2`);
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "The run could not be created.");
     } finally {
@@ -100,11 +123,15 @@ export function Wizard() {
   }
 
   async function onTemplate(file: File) {
-    if (!run) return;
+    const runId = resolveRunId();
+    if (!runId) {
+      toast.error("Complete step 1 first to start a verification run.");
+      return;
+    }
     setBusy(true);
     setProgress(0);
     try {
-      const data = await uploadFile(`/api/runs/${run.id}/template`, file, setProgress);
+      const data = await uploadFile(`/api/runs/${runId}/template`, file, setProgress);
       remember(data.run);
       toast.success(data.run.template?.validationMessage || "Template uploaded.");
       if (!data.run.workbook?.sheets.some((sheet) => sheet.suggestedMapping.facilityName.confidence < 0.74)) goToStep(3);
@@ -345,6 +372,10 @@ export function Wizard() {
             </div>
           </CardContent>
         </Card>
+      ) : null}
+
+      {step === 2 && urlRunId && !run ? (
+        <p className="text-sm text-slate-500">Loading verification run…</p>
       ) : null}
 
       {step === 2 && run ? (
