@@ -8,7 +8,10 @@ export async function GET(request: NextRequest) {
     const processor = await processorHealth();
     return Response.json({
       processor,
-      supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+      supabaseConfigured: Boolean(
+        (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+          process.env.SUPABASE_SERVICE_ROLE_KEY,
+      ),
     });
   } catch (error) {
     return handleError(error);

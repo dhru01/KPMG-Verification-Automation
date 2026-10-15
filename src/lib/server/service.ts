@@ -259,9 +259,10 @@ export async function getWorkspaceSettings() {
         ? process.env.BLOB_READ_WRITE_TOKEN
           ? "Shared workspace on Vercel KV and Blob (all users with the deployment link share one pilot dataset)."
           : "Vercel KV is connected. Add Vercel Blob so uploads work on the shared deployment."
-        : process.env.SUPABASE_URL
-          ? "Supabase credentials are present. Apply the SQL migration before use. This pilot still stores working papers in the local workspace."
-          : "Local workspace store (data/ on disk). For Vercel, connect KV and Blob — see README.",
+        : (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+          ? "Shared workspace on Supabase (workspace_snapshots + ghg-hub-uploads bucket). All users with the deployment link share one pilot dataset."
+          : "Local workspace store (data/ on disk). For Vercel, set Supabase server env vars or connect KV and Blob — see README.",
     disclaimer: PILOT_DISCLAIMER,
   };
 }

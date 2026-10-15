@@ -46,14 +46,26 @@ OCR also needs the Tesseract binary installed on the machine. The processor list
 
 **Local development** — runs and audit events live in `data/store.json`. Uploads live in `data/uploads/`. Both are gitignored.
 
-**Vercel (shared pilot link)** — serverless functions have no durable disk. Everyone with the deployment URL shares **one** workspace when you attach:
+**Vercel (shared pilot link)** — serverless functions have no durable disk. Everyone with the deployment URL shares **one** workspace. Use either:
 
-1. **Redis** — Vercel project → **Storage** → **Marketplace** → add **Upstash Redis** (or an existing Redis integration). This provides `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
-2. **Blob** — add **Vercel Blob** to the same project for `BLOB_READ_WRITE_TOKEN`.
+**Option A — Supabase (recommended if you already use Supabase)**
 
-Redeploy after linking storage. Without Redis, **Continue** on New verification will fail on Vercel with a clear configuration message — that is expected.
+1. In Supabase → **SQL**, run `supabase/migrations/002_workspace_snapshot.sql` (creates `workspace_snapshots` and the `ghg-hub-uploads` storage bucket).
+2. In Vercel → **Settings → Environment Variables**, set:
+   - `NEXT_PUBLIC_SUPABASE_URL` (or `SUPABASE_URL`)
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (browser; optional for this pilot)
+   - `SUPABASE_SERVICE_ROLE_KEY` (server only — never expose as `NEXT_PUBLIC_`)
+3. Redeploy the Vercel project.
 
-Supabase is **not** required for this pilot. `supabase/migrations/001_initial_schema.sql` is a future normalized schema; the app does not read it yet. Do not put the Supabase service-role key in a `NEXT_PUBLIC_` variable.
+**Option B — Vercel KV + Blob**
+
+1. **Redis** — Vercel → **Storage** → **Marketplace** → **Upstash Redis** (`KV_REST_API_URL`, `KV_REST_API_TOKEN`).
+2. **Blob** — **Vercel Blob** (`BLOB_READ_WRITE_TOKEN`).
+3. Redeploy.
+
+Without Option A or B, the dashboard will show a storage configuration error on Vercel.
+
+`supabase/migrations/001_initial_schema.sql` is a future normalized schema; the live pilot uses the single-document `workspace_snapshots` table from `002`.
 
 ## Adding another operating company
 

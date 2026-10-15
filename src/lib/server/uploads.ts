@@ -2,15 +2,25 @@ import { del, list, put } from "@vercel/blob";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { HttpError } from "./http";
-import { blobUploadsEnabled, kvWorkspaceEnabled } from "./workspace-mode";
+import {
+  deleteSupabaseRunFolder,
+  downloadFromSupabase,
+  removeFromSupabase,
+  uploadToSupabase,
+} from "./supabase-storage";
+import { blobUploadsEnabled, kvWorkspaceEnabled, supabaseWorkspaceEnabled } from "./workspace-mode";
 import { localUploadsRoot } from "./local-workspace";
 
 function blobPrefix(runId: string) {
   return `ghg-hub/${runId}/`;
 }
 
-function isRemoteStoragePath(storagePath: string): boolean {
+function isBlobStoragePath(storagePath: string): boolean {
   return storagePath.startsWith("https://");
+}
+
+function isSupabaseStoragePath(storagePath: string): boolean {
+  return storagePath.startsWith("supabase://");
 }
 
 export async function saveUpload(runId: string, storedName: string, bytes: Buffer): Promise<string> {
@@ -20,6 +30,9 @@ export async function saveUpload(runId: string, storedName: string, bytes: Buffe
       addRandomSuffix: false,
     });
     return result.url;
+  }
+  if (supabaseWorkspaceEnabled()) {
+    return uploadToSupabase(runId, storedName, bytes);
   }
   if (kvWorkspaceEnabled()) {
     throw new HttpError(
@@ -35,7 +48,10 @@ export async function saveUpload(runId: string, storedName: string, bytes: Buffe
 }
 
 export async function readUpload(storagePath: string): Promise<Buffer> {
-  if (isRemoteStoragePath(storagePath)) {
+  if (isSupabaseStoragePath(storagePath)) {
+    return downloadFromSupabase(storagePath);
+  }
+  if (isBlobStoragePath(storagePath)) {
     const response = await fetch(storagePath);
     if (!response.ok) {
       throw new HttpError(404, "Uploaded file could not be retrieved.");
@@ -51,7 +67,11 @@ export async function readUpload(storagePath: string): Promise<Buffer> {
 }
 
 export async function removeUpload(storagePath: string) {
-  if (isRemoteStoragePath(storagePath)) {
+  if (isSupabaseStoragePath(storagePath)) {
+    await removeFromSupabase(storagePath);
+    return;
+  }
+  if (isBlobStoragePath(storagePath)) {
     await del(storagePath);
     return;
   }
@@ -71,6 +91,10 @@ export async function deleteRunUploadFolder(runId: string) {
       await Promise.all(page.blobs.map((blob) => del(blob.url)));
       cursor = page.hasMore ? page.cursor : undefined;
     } while (cursor);
+    return;
+  }
+  if (supabaseWorkspaceEnabled()) {
+    await deleteSupabaseRunFolder(runId);
     return;
   }
   if (kvWorkspaceEnabled()) return;
