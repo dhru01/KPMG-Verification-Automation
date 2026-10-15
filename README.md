@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GHG Verification Hub
 
-## Getting Started
+Internal workspace for reviewing monthly Scope 1 and Scope 2 activity data. Ayoba is the only active operating company in this pilot.
 
-First, run the development server:
+The direct-comparison rule is a **demonstration**. It is not an approved Ayoba verification methodology, and exported reports are working papers. They are not an audit opinion, assurance conclusion, or formal verification certificate.
+
+## Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). The workspace opens directly.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Try the pilot workflow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. On the dashboard, choose **Load demonstration run**, or start **New Verification** and download the demonstration template and evidence.
+2. Review the extracted consumption records and evidence values.
+3. Run the pilot verification.
+4. Open a result to see the calculation, then accept, flag, or request more evidence.
+5. Export the Excel workbook or PDF summary from Reports.
 
-## Learn More
+The demonstration pack is labelled as demonstration data. It is not an Ayoba submission.
 
-To learn more about Next.js, take a look at the following resources:
+## Tests
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm test
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The tests cover difference calculations, the zero-evidence rule, unit conversion, the pilot statuses, and the demonstration Excel pipeline.
 
-## Deploy on Vercel
+## Optional document processor
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Excel and text-based PDFs are parsed inside the Next.js app. Scanned images are stored and flagged for review unless the local Python processor is running:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+python3 -m pip install -r services/document-processor/requirements.txt
+npm run processor
+```
+
+OCR also needs the Tesseract binary installed on the machine. The processor listens on `http://127.0.0.1:8765`. Uploaded files are not sent to a third-party AI or OCR service.
+
+## Data storage
+
+Verification runs, corrections and audit events are stored in `data/store.json`. Uploaded files are stored in `data/uploads/`. Both directories are local and gitignored.
+
+`supabase/migrations/001_initial_schema.sql` is the PostgreSQL schema, including row-level security, for an approved Supabase project. Do not put the Supabase service-role key in a `NEXT_PUBLIC_` variable.
+
+## Adding another operating company
+
+Register an OPCO configuration and a methodology under `verification-engine/methodologies/`, then add it to `verification-engine/methodologies/registry.ts`. Excel column aliases live in `src/lib/excel/parse.ts`. The screens do not contain Ayoba-specific comparison logic.
+
+The pilot enables direct comparison only. Sum-of-records and calculated-consumption rules exist in the engine and stay disabled until a methodology explicitly turns one of them on.
