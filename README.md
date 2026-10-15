@@ -50,7 +50,7 @@ OCR also needs the Tesseract binary installed on the machine. The processor list
 
 **Option A — Supabase (recommended if you already use Supabase)**
 
-1. In Supabase → **SQL**, run `supabase/migrations/002_workspace_snapshot.sql` (creates the private **`ghg-hub-uploads`** storage bucket).
+1. In Supabase → **SQL**, run **`002_workspace_snapshot.sql`** (storage bucket) and **`003_workspace_table_grants.sql`** (atomic workspace — avoids “Verification run not found” after template upload).
 2. In Vercel → **Settings → Environment Variables**, set:
    - `NEXT_PUBLIC_SUPABASE_URL` (or `SUPABASE_URL`)
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (browser; optional for this pilot)

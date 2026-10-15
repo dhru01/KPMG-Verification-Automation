@@ -36,11 +36,19 @@ function publishPeriod(month: string, year: number) {
   window.dispatchEvent(new Event("ghg-hub-period-changed"));
 }
 
+type SystemStatus = {
+  workspace?: { status: string; mode: string; detail?: string };
+  deployment?: { host: string; commit: string | null };
+};
+
 export function DashboardView() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [month, setMonth] = useState("September");
   const [year, setYear] = useState(2026);
   const [resetBusy, setResetBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
 
   const loadDashboard = useCallback(async (reportingMonth: string, reportingYear: number) => {
     const query = new URLSearchParams({ month: reportingMonth, year: String(reportingYear) });
@@ -51,6 +59,8 @@ export function DashboardView() {
     const stored = readStoredPeriod();
     setMonth(stored.month);
     setYear(stored.year);
+    setLoading(true);
+    setLoadError(null);
     loadDashboard(stored.month, stored.year)
       .then((dashboard) => {
         setData(dashboard);
@@ -61,7 +71,16 @@ export function DashboardView() {
           publishPeriod(fromLatest.month, fromLatest.year);
         }
       })
-      .catch((error: Error) => toast.error(error.message));
+      .catch(async (error: Error) => {
+        setLoadError(error.message);
+        toast.error(error.message);
+        try {
+          setSystemStatus(await api<SystemStatus>("/api/system"));
+        } catch {
+          setSystemStatus(null);
+        }
+      })
+      .finally(() => setLoading(false));
   }, [loadDashboard]);
 
   async function clearAyobaDemo() {
@@ -96,6 +115,32 @@ export function DashboardView() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load dashboard for this period.");
     }
+  }
+
+  if (loading && !data) {
+    return <p className="text-sm text-slate-500">Loading verification activity…</p>;
+  }
+
+  if (loadError && !data) {
+    return (
+      <div className="max-w-2xl space-y-3 rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-950">
+        <p className="font-semibold">Verification activity could not be loaded</p>
+        <p>{loadError}</p>
+        {systemStatus?.workspace?.detail ? <p className="text-red-900">{systemStatus.workspace.detail}</p> : null}
+        {systemStatus?.workspace?.mode ? (
+          <p className="text-xs text-red-800">
+            Workspace mode: {systemStatus.workspace.mode}
+            {systemStatus.workspace.status === "ok" ? " (connected)" : ""}
+            {systemStatus.deployment?.commit ? ` · build ${systemStatus.deployment.commit.slice(0, 7)}` : ""}
+          </p>
+        ) : null}
+        <p className="text-xs text-red-800">
+          Hosted pilots need Supabase server env vars and the <code className="rounded bg-red-100 px-1">ghg-hub-uploads</code>{" "}
+          bucket. See the project README (Deploy on Vercel).
+        </p>
+        <Button type="button" variant="outline" onClick={() => window.location.reload()}>Try again</Button>
+      </div>
+    );
   }
 
   if (!data) return <p className="text-sm text-slate-500">Loading verification activity…</p>;

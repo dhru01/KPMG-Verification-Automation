@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { SettingsView } from "@/components/settings/settings-view";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Settings" };
-
+/** Settings UI is not part of the pilot workspace; configuration is via deployment env vars. */
 export default function SettingsPage() {
-  return <SettingsView />;
+  redirect("/");
 }
