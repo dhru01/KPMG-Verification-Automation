@@ -44,9 +44,16 @@ OCR also needs the Tesseract binary installed on the machine. The processor list
 
 ## Data storage
 
-Verification runs, corrections and audit events are stored in `data/store.json`. Uploaded files are stored in `data/uploads/`. Both directories are local and gitignored.
+**Local development** — runs and audit events live in `data/store.json`. Uploads live in `data/uploads/`. Both are gitignored.
 
-`supabase/migrations/001_initial_schema.sql` is the PostgreSQL schema, including row-level security, for an approved Supabase project. Do not put the Supabase service-role key in a `NEXT_PUBLIC_` variable.
+**Vercel (shared pilot link)** — serverless functions have no durable disk. Everyone with the deployment URL shares **one** workspace when you attach:
+
+1. **Redis** — Vercel project → **Storage** → **Marketplace** → add **Upstash Redis** (or an existing Redis integration). This provides `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
+2. **Blob** — add **Vercel Blob** to the same project for `BLOB_READ_WRITE_TOKEN`.
+
+Redeploy after linking storage. Without Redis, **Continue** on New verification will fail on Vercel with a clear configuration message — that is expected.
+
+Supabase is **not** required for this pilot. `supabase/migrations/001_initial_schema.sql` is a future normalized schema; the app does not read it yet. Do not put the Supabase service-role key in a `NEXT_PUBLIC_` variable.
 
 ## Adding another operating company
 

@@ -1,133 +1,20 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
-import path from "path";
-import { DEFAULT_TOLERANCE } from "@engine/shared/types";
-import type { AppNotification, AppSettings, AuditLogEntry, VerificationRun } from "../types";
-import { HttpError } from "./http";
+import { readKvDatabase, updateKvDatabase } from "./kv-workspace";
+import { readLocalDatabase, updateLocalDatabase } from "./local-workspace";
+import { assertWorkspacePersistence, kvWorkspaceEnabled } from "./workspace-mode";
+import type { WorkspaceDatabase } from "./workspace-data";
 
-interface Database {
-  runs: VerificationRun[];
-  auditLogs: AuditLogEntry[];
-  notifications: AppNotification[];
-  settings: AppSettings;
+export type { WorkspaceDatabase };
+
+export function readDatabase(): Promise<WorkspaceDatabase> {
+  assertWorkspacePersistence();
+  return kvWorkspaceEnabled() ? readKvDatabase() : readLocalDatabase();
 }
 
-function emptyDatabase(): Database {
-  return {
-    runs: [],
-    auditLogs: [],
-    notifications: [],
-    settings: {
-      tolerance: DEFAULT_TOLERANCE,
-      opcoRegions: { ayoba: "South Africa" },
-    },
-  };
+export function updateDatabase(
+  mutator: (database: WorkspaceDatabase) => void | Promise<void>,
+): Promise<WorkspaceDatabase> {
+  assertWorkspacePersistence();
+  return kvWorkspaceEnabled() ? updateKvDatabase(mutator) : updateLocalDatabase(mutator);
 }
 
-function normalizeDatabase(parsed: Partial<Database> | undefined): Database {
-  const empty = emptyDatabase();
-  if (!parsed || typeof parsed !== "object") return empty;
-  return {
-    runs: Array.isArray(parsed.runs) ? parsed.runs : [],
-    auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : [],
-    notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
-    settings: {
-      ...empty.settings,
-      ...(parsed.settings && typeof parsed.settings === "object" ? parsed.settings : {}),
-      opcoRegions: {
-        ...empty.settings.opcoRegions,
-        ...(parsed.settings?.opcoRegions && typeof parsed.settings.opcoRegions === "object"
-          ? parsed.settings.opcoRegions
-          : {}),
-      },
-    },
-  };
-}
-
-const dataDir = path.join(process.cwd(), "data");
-const storePath = path.join(dataDir, "store.json");
-
-let queue: Promise<unknown> = Promise.resolve();
-
-function withLock<T>(task: () => Promise<T>): Promise<T> {
-  const run = queue.then(task, task);
-  queue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
-async function readUnlocked(): Promise<Database> {
-  try {
-    const raw = await readFile(storePath, "utf8");
-    const parsed = JSON.parse(raw) as Partial<Database>;
-    return normalizeDatabase(parsed);
-  } catch {
-    return emptyDatabase();
-  }
-}
-
-function persistenceError(error: unknown): HttpError {
-  const code = error && typeof error === "object" && "code" in error ? String((error as NodeJS.ErrnoException).code) : "";
-  if (code === "EACCES" || code === "EPERM" || code === "EROFS") {
-    return new HttpError(
-      503,
-      "Could not save verification data. Ensure the project data folder exists and is writable (see README: Data storage).",
-    );
-  }
-  if (code === "ENOSPC") {
-    return new HttpError(503, "Could not save verification data. The disk is full.");
-  }
-  return new HttpError(503, "Could not save verification data. Run the app from the project root and try again.");
-}
-
-async function writeUnlocked(database: Database) {
-  try {
-    await mkdir(dataDir, { recursive: true });
-    await writeFile(storePath, JSON.stringify(database));
-  } catch (error) {
-    throw persistenceError(error);
-  }
-}
-
-export function readDatabase(): Promise<Database> {
-  return withLock(readUnlocked);
-}
-
-export function updateDatabase(mutator: (database: Database) => void | Promise<void>): Promise<Database> {
-  return withLock(async () => {
-    const database = await readUnlocked();
-    await mutator(database);
-    await writeUnlocked(database);
-    return database;
-  });
-}
-
-export function uploadsRoot(): string {
-  return path.join(dataDir, "uploads");
-}
-
-export async function saveUpload(runId: string, storedName: string, bytes: Buffer): Promise<string> {
-  const directory = path.join(uploadsRoot(), runId);
-  await mkdir(directory, { recursive: true });
-  const fullPath = path.join(directory, storedName);
-  await writeFile(fullPath, bytes);
-  return path.relative(process.cwd(), fullPath);
-}
-
-export async function readUpload(relativePath: string): Promise<Buffer> {
-  const root = uploadsRoot();
-  const fullPath = path.resolve(/* turbopackIgnore: true */ process.cwd(), relativePath);
-  if (!fullPath.startsWith(root + path.sep)) {
-    throw new Error("Invalid file path.");
-  }
-  return readFile(fullPath);
-}
-
-export async function removeUpload(relativePath: string) {
-  const root = uploadsRoot();
-  const fullPath = path.resolve(/* turbopackIgnore: true */ process.cwd(), relativePath);
-  if (!fullPath.startsWith(root + path.sep)) return;
-  const { rm } = await import("fs/promises");
-  await rm(fullPath, { force: true });
-}
+export { saveUpload, readUpload, removeUpload, deleteRunUploadFolder, uploadsRoot } from "./uploads";

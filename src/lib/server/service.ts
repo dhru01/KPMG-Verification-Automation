@@ -38,9 +38,14 @@ import type { ToleranceConfig as EngineTolerance } from "@engine/shared/types";
 import { HttpError } from "./http";
 import { applyAyobaVerificationPrep, methodologyNoteForResult, prepareAyobaVerification } from "./ayoba-verification";
 import { extractPdfPages } from "./processor";
-import path from "node:path";
-import { rm } from "node:fs/promises";
-import { readDatabase, readUpload, removeUpload, saveUpload, updateDatabase, uploadsRoot } from "./store";
+import {
+  deleteRunUploadFolder,
+  readDatabase,
+  readUpload,
+  removeUpload,
+  saveUpload,
+  updateDatabase,
+} from "./store";
 
 const WRITERS = new Set(["administrator", "consultant"]);
 const REVIEWERS = new Set(["administrator", "reviewer"]);
@@ -249,9 +254,14 @@ export async function getWorkspaceSettings() {
       region: database.settings.opcoRegions[opco.id] ?? opco.region,
     })),
     methodologies: listOpcoConfigurations().map((opco) => getMethodologyForOpco(opco.id)),
-    persistence: process.env.SUPABASE_URL
-      ? "Supabase credentials are present. Apply the SQL migration before use. This pilot still stores working papers in the local workspace."
-      : "Local workspace store. Supabase is not configured.",
+    persistence:
+      process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
+        ? process.env.BLOB_READ_WRITE_TOKEN
+          ? "Shared workspace on Vercel KV and Blob (all users with the deployment link share one pilot dataset)."
+          : "Vercel KV is connected. Add Vercel Blob so uploads work on the shared deployment."
+        : process.env.SUPABASE_URL
+          ? "Supabase credentials are present. Apply the SQL migration before use. This pilot still stores working papers in the local workspace."
+          : "Local workspace store (data/ on disk). For Vercel, connect KV and Blob — see README.",
     disclaimer: PILOT_DISCLAIMER,
   };
 }
@@ -843,7 +853,7 @@ async function deleteRunUploads(run: VerificationRun) {
   for (const document of run.evidenceDocuments) {
     await removeUpload(document.storagePath);
   }
-  await rm(path.join(uploadsRoot(), run.id), { recursive: true, force: true });
+  await deleteRunUploadFolder(run.id);
 }
 
 export async function resetAyobaDemoVerification(
