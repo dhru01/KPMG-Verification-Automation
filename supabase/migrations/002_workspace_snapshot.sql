@@ -1,6 +1,11 @@
--- Shared pilot workspace (single JSON document). Used when SUPABASE_SERVICE_ROLE_KEY is set on the server.
--- Run this in the Supabase SQL editor if you have not applied migrations yet.
+-- Shared pilot on Supabase: private bucket for uploads + workspace JSON (_workspace/database.json).
+-- Run this in Supabase → SQL. The app uses Storage (service role), not the optional table below.
 
+insert into storage.buckets (id, name, public)
+values ('ghg-hub-uploads', 'ghg-hub-uploads', false)
+on conflict (id) do nothing;
+
+-- Optional legacy table (not used by current app builds). Safe to skip.
 create table if not exists public.workspace_snapshots (
   id text primary key default 'default',
   payload jsonb not null default '{}'::jsonb,
@@ -8,10 +13,4 @@ create table if not exists public.workspace_snapshots (
   updated_at timestamptz not null default now()
 );
 
-insert into public.workspace_snapshots (id, payload, version)
-values ('default', '{}'::jsonb, 0)
-on conflict (id) do nothing;
-
-insert into storage.buckets (id, name, public)
-values ('ghg-hub-uploads', 'ghg-hub-uploads', false)
-on conflict (id) do nothing;
+grant all on table public.workspace_snapshots to postgres, service_role;
